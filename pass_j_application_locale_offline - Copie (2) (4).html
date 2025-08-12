@@ -104,6 +104,8 @@
     .timer-actions{display:flex;gap:8px;margin-top:10px;justify-content:center}
       .time-setter{display:flex;align-items:center;justify-content:center;gap:8px;margin:12px 0;font-family:ui-monospace,monospace}
       .time-setter input{width:60px;text-align:center;padding:8px;border-radius:8px;border:1px solid var(--border);background:#0e1424;color:var(--text);font-family:inherit}
+      .preset-buttons{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:4px}
+      .preset-buttons .btn{font-size:13px;padding:6px 10px}
     .pill-mini{position:fixed;right:22px;bottom:22px;z-index:121;display:none}
     .pill-mini .btn{padding:10px 12px;border-radius:999px;cursor:move}
     .toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
@@ -152,6 +154,7 @@
       <button class="btn" id="prevBtn">◀</button>
       <button class="btn" id="todayBtn">Aujourd'hui</button>
       <button class="btn" id="nextBtn">▶</button>
+      <button class="btn" id="openTimer" title="Minuteur/Chrono">⏱</button>
     </div>
   </div>
 
@@ -387,12 +390,17 @@
           <span>:</span>
           <input type="number" id="timer-seconds" min="0" max="59" value="0" placeholder="S">
         </div>
+        <div class="preset-buttons">
+          <button class="btn preset" data-time="300" type="button">5 min</button>
+          <button class="btn preset" data-time="900" type="button">15 min</button>
+          <button class="btn preset" data-time="1500" type="button">25 min</button>
+        </div>
       </div>
       <div class="timer-actions">
-        <button class="btn success" id="timerStart">Démarrer</button>
-        <button class="btn" id="timerPause" style="display:none">Pause</button>
-        <button class="btn" id="timerResume" style="display:none">Reprendre</button>
-        <button class="btn warning" id="timerStop" style="display:none">Arrêter & enregistrer</button>
+        <button class="btn success" id="timerStart" type="button">Démarrer</button>
+        <button class="btn" id="timerPause" style="display:none" type="button">Pause</button>
+        <button class="btn" id="timerResume" style="display:none" type="button">Reprendre</button>
+        <button class="btn warning" id="timerStop" style="display:none" type="button">Arrêter & enregistrer</button>
       </div>
     </div>
   </div>
@@ -611,6 +619,15 @@
           Timer.updateUI();
         });
       });
+
+      $$('.preset').forEach(function(btn){
+        btn.addEventListener('click',function(){
+          var secs=parseInt(btn.dataset.time,10)||0;
+          $('#timer-hours').value=Math.floor(secs/3600);
+          $('#timer-minutes').value=Math.floor((secs%3600)/60);
+          $('#timer-seconds').value=secs%60;
+        });
+      });
       
       if(st&&st.active){
         Timer.updateUI();
@@ -624,7 +641,8 @@
       applyPositions();
     },
     openForEvent:function(ev){Timer.tickStop(); var c=courseOf(ev);var s=subjectOf(ev);Store.data.timer={active:true,evId:ev.id,courseId:ev.courseId,subjectId:(Store.data.courses.find(function(x){return x.id===ev.courseId})||{}).subjectId||null,start:0,elapsed:0,total:0,running:false,minimized:false,title:(c.name+' · J'+ev.j+' · '+ev.date),color:s.color}; Store.touch(); Timer.updateUI(); $$('.mode-btn').forEach(function(b){b.classList.toggle('active',b.dataset.mode===Timer.mode)}); var pan=$('#timer'); var dock=$('#timerDock'); if(pan) pan.style.display='block'; if(dock) dock.style.display='none'; applyPositions();},
-    start:function(){var st=Store.data.timer; if(!st||!st.active||st.running) return; if(Timer.mode==='timer' && st.elapsed===0){var h=parseInt($('#timer-hours').value)||0;var m=parseInt($('#timer-minutes').value)||0;var s=parseInt($('#timer-seconds').value)||0;st.total=h*3600+m*60+s;st.elapsed=0;} st.running=true; st.start=Date.now(); Store.touch(); Timer.tickStart(); Timer.updateUI()},
+    openManual:function(){Timer.tickStop(); Store.data.timer={active:true,evId:null,courseId:null,subjectId:null,start:0,elapsed:0,total:0,running:false,minimized:false,title:'Session libre',color:'#22c55e'}; Store.touch(); Timer.mode='timer'; Timer.updateUI(); $$('.mode-btn').forEach(function(b){b.classList.toggle('active',b.dataset.mode===Timer.mode)}); var pan=$('#timer'); var dock=$('#timerDock'); if(pan) pan.style.display='block'; if(dock) dock.style.display='none'; applyPositions();},
+    start:function(){var st=Store.data.timer; if(!st||st.running) return; if(!st.active) {Timer.openManual(); st=Store.data.timer;} if(Timer.mode==='timer' && st.elapsed===0){var h=parseInt($('#timer-hours').value)||0;var m=parseInt($('#timer-minutes').value)||0;var s=parseInt($('#timer-seconds').value)||0;var total=h*3600+m*60+s; if(total<=0){alert('Durée invalide');return;} st.total=total;st.elapsed=0;} st.running=true; st.start=Date.now(); Store.touch(); Timer.tickStart(); Timer.updateUI()},
     pause:function(){var st=Store.data.timer; if(!st||!st.running) return; st.elapsed += Math.floor((Date.now()-st.start)/1000); st.running=false; Store.touch(); Timer.tickStop(); Timer.updateUI()},
     resume:function(){var st=Store.data.timer; if(!st||st.running||!st.active) return; st.running=true; st.start=Date.now(); Store.touch(); Timer.tickStart(); Timer.updateUI()},
     stop:function(){var st=Store.data.timer; if(!st||!st.active) return; if(st.running){st.elapsed += Math.floor((Date.now()-st.start)/1000)} var secs=st.elapsed; var date=toKey(new Date()); if(secs>0){Store.data.sessions.push({seconds:secs,date:date,courseId:st.courseId,subjectId:st.subjectId,evId:st.evId,startedAt:new Date().toISOString()})} Store.data.timer={active:false,evId:null,courseId:null,subjectId:null,start:0,elapsed:0,total:0,running:false,minimized:false,title:'',color:'#22c55e'}; Store.touch(); Timer.tickStop(); Timer.updateUI(); var pan=$('#timer'); var dock=$('#timerDock'); if(pan) pan.style.display='none'; if(dock) dock.style.display='none'; renderStats()},
@@ -632,6 +650,7 @@
     close:function(){var st=Store.data.timer; if(!st||!st.active) return; Timer.minimize(true)},
     tickStart:function(){clearInterval(Timer.int); Timer.int=setInterval(function(){Timer.updateUI(true)},1000)},
     tickStop:function(){clearInterval(Timer.int)},
+    playSound:function(){try{var C=window.AudioContext||window.webkitAudioContext;var ctx=new C();var o=ctx.createOscillator();var g=ctx.createGain();g.gain.value=0.1;o.type='sine';o.frequency.value=880;o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+0.5);}catch(e){}},
     toggleFullscreen:function(){
       var st=Store.data.timer||{};
       var pan=$('#timer');
@@ -662,9 +681,10 @@
         if(dock)dock.textContent='⏱ '+fmtHMS(remaining)+'  ·  '+(st.title||'');
         if(pb)pb.style.display='block';
         if(bar)bar.style.width=total?Math.min(elapsed/total*100,100)+'%':'0%';
-        if(st.running && remaining<=0){Timer.stop();return;}
+        if(st.running && remaining<=0){Timer.playSound();Timer.stop();return;}
         if(tm)tm.textContent=st.running?'En cours…':'En pause';
         var ts=$('.time-setter'); if(ts) ts.style.display=st.running?'none':'flex';
+        var pbts=$('.preset-buttons'); if(pbts) pbts.style.display=st.running?'none':'flex';
       }else{
         if(dig)dig.textContent=fmtHMS(elapsed);
         if(dock)dock.textContent='⏱ '+fmtHMS(elapsed)+'  ·  '+(st.title||'');
@@ -672,6 +692,7 @@
         if(bar)bar.style.width='0%';
         if(tm)tm.textContent=st.running?'Chronomètre en cours…':'Chronomètre en pause';
         var ts2=$('.time-setter'); if(ts2) ts2.style.display='none';
+        var pbts2=$('.preset-buttons'); if(pbts2) pbts2.style.display='none';
       }
 
       var s1=$('#timerStart');
@@ -763,6 +784,7 @@
       on('#prevBtn','click',function(){shift(-1)});
       on('#nextBtn','click',function(){shift(1)});
       on('#todayBtn','click',function(){UI.refDate=fmtDate(new Date());renderAgenda()});
+      on('#openTimer','click',function(){Timer.openManual()});
       on('#openFilters','click',openFilters);
       on('#filtersApply','click',function(){applyNewFilters()});
       on('#filtersClear','click',function(){clearFilters();buildFiltersUI();renderAgenda()});
