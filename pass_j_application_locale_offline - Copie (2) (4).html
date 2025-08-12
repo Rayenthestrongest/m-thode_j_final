@@ -384,11 +384,11 @@
       <div class="progress-bar"><div id="timerProgress" class="progress-fill"></div></div>
       <div class="timer-mode timer" id="timer-mode-timer">
         <div class="time-setter">
-          <input type="number" id="timer-hours" min="0" max="23" value="0" placeholder="H">
+          <input type="number" id="timer-hours" min="0" step="1" value="0" placeholder="H">
           <span>:</span>
-          <input type="number" id="timer-minutes" min="0" max="59" value="0" placeholder="M">
+          <input type="number" id="timer-minutes" min="0" step="1" value="0" placeholder="M">
           <span>:</span>
-          <input type="number" id="timer-seconds" min="0" max="59" value="0" placeholder="S">
+          <input type="number" id="timer-seconds" min="0" step="1" value="0" placeholder="S">
         </div>
         <div class="preset-buttons">
           <button class="btn preset" data-time="300" type="button">5 min</button>
@@ -683,7 +683,10 @@
         if(bar)bar.style.width=total?Math.min(elapsed/total*100,100)+'%':'0%';
         if(st.running && remaining<=0){Timer.playSound();Timer.stop();return;}
         if(tm)tm.textContent=st.running?'En cours…':'En pause';
-        var ts=$('.time-setter'); if(ts) ts.style.display=st.running?'none':'flex';
+        var ts=$('.time-setter'); if(ts) ts.style.display='flex';
+        ['#timer-hours','#timer-minutes','#timer-seconds'].forEach(function(sel){
+          var inp=$(sel); if(inp) inp.disabled=st.running;
+        });
         var pbts=$('.preset-buttons'); if(pbts) pbts.style.display=st.running?'none':'flex';
       }else{
         if(dig)dig.textContent=fmtHMS(elapsed);
@@ -692,6 +695,9 @@
         if(bar)bar.style.width='0%';
         if(tm)tm.textContent=st.running?'Chronomètre en cours…':'Chronomètre en pause';
         var ts2=$('.time-setter'); if(ts2) ts2.style.display='none';
+        ['#timer-hours','#timer-minutes','#timer-seconds'].forEach(function(sel){
+          var inp=$(sel); if(inp) inp.disabled=false;
+        });
         var pbts2=$('.preset-buttons'); if(pbts2) pbts2.style.display='none';
       }
 
