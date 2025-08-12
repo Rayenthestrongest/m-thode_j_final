@@ -98,12 +98,15 @@
     .mode-btn{font-size:12px;padding:4px 8px!important}
     .mode-btn.active{background:linear-gradient(180deg,#263149,#192033)}
     .timer-body{padding:14px;display:flex;flex-direction:column;flex:1}
-    .timer.fullscreen .timer-body{overflow-y:auto}
+    .timer.fullscreen .timer-body{overflow-y:auto;align-items:center}
     .digits{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;font-size:42px;letter-spacing:1px;text-align:center}
+    .digits span{display:inline-block;min-width:2ch}
+    .digits span.editable{border-bottom:1px dashed var(--border);cursor:text}
     .timer.fullscreen .digits{font-size:72px;margin:40px 0}
     .timer-actions{display:flex;gap:8px;margin-top:10px;justify-content:center}
-      .time-setter{display:flex;align-items:center;justify-content:center;gap:8px;margin:12px 0;font-family:ui-monospace,monospace}
-      .time-setter input{width:60px;text-align:center;padding:8px;border-radius:8px;border:1px solid var(--border);background:#0e1424;color:var(--text);font-family:inherit}
+      .preset-buttons{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:4px}
+      .preset-buttons .btn{font-size:13px;padding:6px 10px}
+    #lapList{list-style:none;padding-left:0;margin-top:12px;text-align:center}
     .pill-mini{position:fixed;right:22px;bottom:22px;z-index:121;display:none}
     .pill-mini .btn{padding:10px 12px;border-radius:999px;cursor:move}
     .toolbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
@@ -113,7 +116,7 @@
       .progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-2));width:0%}
       .history-filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
       .timer.fullscreen{position:fixed;inset:0;width:100%;height:100%;max-width:none;border-radius:0;display:flex;flex-direction:column}
-      .timer.fullscreen .timer-body{flex:1;overflow-y:auto}
+      .timer.fullscreen .timer-body{flex:1;overflow-y:auto;align-items:center}
       .timer.fullscreen .digits{font-size:72px;margin:40px 0}
       .toolbar .btn, .toolbar select, .toolbar input{padding:8px 10px;border-radius:12px;border:1px solid var(--border);background:linear-gradient(180deg,#141b22,#0e131b);color:var(--text)}
       .chart-wrap{padding:10px;border:1px solid var(--border);border-radius:14px;background:linear-gradient(180deg,#0e1424,#0a101a)}
@@ -152,6 +155,7 @@
       <button class="btn" id="prevBtn">◀</button>
       <button class="btn" id="todayBtn">Aujourd'hui</button>
       <button class="btn" id="nextBtn">▶</button>
+      <button class="btn" id="openTimer" title="Minuteur/Chrono">⏱</button>
     </div>
   </div>
 
@@ -376,23 +380,23 @@
   </div>
   <div class="timer-body">
     <div id="timer-main-view">
-      <div class="digits" id="timerDigits">00:00:00</div>
+      <div class="digits" id="timerDigits"><span id="timerH">00</span>:<span id="timerM">00</span>:<span id="timerS">00</span></div>
       <div class="hint" id="timerMeta"></div>
       <div class="progress-bar"><div id="timerProgress" class="progress-fill"></div></div>
       <div class="timer-mode timer" id="timer-mode-timer">
-        <div class="time-setter">
-          <input type="number" id="timer-hours" min="0" max="23" value="0" placeholder="H">
-          <span>:</span>
-          <input type="number" id="timer-minutes" min="0" max="59" value="0" placeholder="M">
-          <span>:</span>
-          <input type="number" id="timer-seconds" min="0" max="59" value="0" placeholder="S">
+        <div class="preset-buttons">
+          <button class="btn preset" data-time="300" type="button">5 min</button>
+          <button class="btn preset" data-time="900" type="button">15 min</button>
+          <button class="btn preset" data-time="1500" type="button">25 min</button>
         </div>
       </div>
+      <ul id="lapList" style="display:none"></ul>
       <div class="timer-actions">
-        <button class="btn success" id="timerStart">Démarrer</button>
-        <button class="btn" id="timerPause" style="display:none">Pause</button>
-        <button class="btn" id="timerResume" style="display:none">Reprendre</button>
-        <button class="btn warning" id="timerStop" style="display:none">Arrêter & enregistrer</button>
+        <button class="btn success" id="timerStart" type="button">Démarrer</button>
+        <button class="btn" id="timerPause" style="display:none" type="button">Pause</button>
+        <button class="btn" id="timerResume" style="display:none" type="button">Reprendre</button>
+        <button class="btn" id="timerLap" style="display:none" type="button">Tour</button>
+        <button class="btn warning" id="timerStop" style="display:none" type="button">Arrêter & enregistrer</button>
       </div>
     </div>
   </div>
@@ -590,7 +594,7 @@
   }
 
   var Timer={
-    int:null,mode:'chrono',isFullscreen:false,
+    int:null,mode:'chrono',isFullscreen:false,laps:[],
     bind:function(){
       var st=Store.data.timer;
       on('#timerStart','click',function(){Timer.start()});
@@ -601,7 +605,7 @@
       on('#timerClose','click',function(){Timer.close()});
       on('#timerDockBtn','click',function(){Timer.minimize(false)});
       on('#timerFullscreen','click',function(){Timer.toggleFullscreen()});
-      
+
       // Gestionnaire de modes (minuteur/chrono)
       $$('.mode-btn').forEach(function(btn){
         btn.addEventListener('click',function(){
@@ -611,6 +615,28 @@
           Timer.updateUI();
         });
       });
+
+      $$('.preset').forEach(function(btn){
+        btn.addEventListener('click',function(){
+          var secs=parseInt(btn.dataset.time,10)||0;
+          Timer.setDigits(secs);
+        });
+      });
+
+      ['#timerH','#timerM','#timerS'].forEach(function(sel,idx){
+        var max=idx===0?99:59; // hours can go up to 99
+        var el=$(sel);
+        if(!el) return;
+        el.addEventListener('keydown',function(e){if(e.key==='Enter'){e.preventDefault();el.blur();}});
+        el.addEventListener('blur',function(){
+          var num=parseInt(el.textContent,10);
+          if(isNaN(num)) num=0;
+          if(num<0) num=0; if(num>max) num=max;
+          el.textContent=String(num).padStart(2,'0');
+        });
+      });
+
+      on('#timerLap','click',function(){Timer.lap()});
       
       if(st&&st.active){
         Timer.updateUI();
@@ -624,20 +650,28 @@
       applyPositions();
     },
     openForEvent:function(ev){Timer.tickStop(); var c=courseOf(ev);var s=subjectOf(ev);Store.data.timer={active:true,evId:ev.id,courseId:ev.courseId,subjectId:(Store.data.courses.find(function(x){return x.id===ev.courseId})||{}).subjectId||null,start:0,elapsed:0,total:0,running:false,minimized:false,title:(c.name+' · J'+ev.j+' · '+ev.date),color:s.color}; Store.touch(); Timer.updateUI(); $$('.mode-btn').forEach(function(b){b.classList.toggle('active',b.dataset.mode===Timer.mode)}); var pan=$('#timer'); var dock=$('#timerDock'); if(pan) pan.style.display='block'; if(dock) dock.style.display='none'; applyPositions();},
-    start:function(){var st=Store.data.timer; if(!st||!st.active||st.running) return; if(Timer.mode==='timer' && st.elapsed===0){var h=parseInt($('#timer-hours').value)||0;var m=parseInt($('#timer-minutes').value)||0;var s=parseInt($('#timer-seconds').value)||0;st.total=h*3600+m*60+s;st.elapsed=0;} st.running=true; st.start=Date.now(); Store.touch(); Timer.tickStart(); Timer.updateUI()},
+    openManual:function(){Timer.tickStop(); Store.data.timer={active:true,evId:null,courseId:null,subjectId:null,start:0,elapsed:0,total:0,running:false,minimized:false,title:'Session libre',color:'#22c55e'}; Store.touch(); Timer.mode='timer'; Timer.updateUI(); $$('.mode-btn').forEach(function(b){b.classList.toggle('active',b.dataset.mode===Timer.mode)}); var pan=$('#timer'); var dock=$('#timerDock'); if(pan) pan.style.display='block'; if(dock) dock.style.display='none'; applyPositions();},
+    start:function(){var st=Store.data.timer; if(!st||st.running) return; if(!st.active){Timer.openManual(); st=Store.data.timer;} if(Timer.mode==='timer' && st.elapsed===0){var inp=Timer.getInput(); if(inp.total<=0){alert('Durée invalide');return;} st.total=inp.total;st.elapsed=0;} if(Timer.mode==='chrono'){Timer.laps=[];Timer.renderLaps();} st.running=true; st.start=Date.now(); Store.touch(); Timer.tickStart(); Timer.updateUI()},
     pause:function(){var st=Store.data.timer; if(!st||!st.running) return; st.elapsed += Math.floor((Date.now()-st.start)/1000); st.running=false; Store.touch(); Timer.tickStop(); Timer.updateUI()},
     resume:function(){var st=Store.data.timer; if(!st||st.running||!st.active) return; st.running=true; st.start=Date.now(); Store.touch(); Timer.tickStart(); Timer.updateUI()},
+    getInput:function(){var h=parseInt($('#timerH').textContent)||0;var m=parseInt($('#timerM').textContent)||0;var s=parseInt($('#timerS').textContent)||0;return{h:h,m:m,s:s,total:h*3600+m*60+s};},
+    setDigits:function(secs){var p=fmtHMS(secs).split(':');$('#timerH').textContent=p[0];$('#timerM').textContent=p[1];$('#timerS').textContent=p[2];},
+    lap:function(){var st=Store.data.timer;if(!st||!st.running||Timer.mode!=='chrono')return;var elapsed=st.elapsed+Math.floor((Date.now()-st.start)/1000);Timer.laps.push(elapsed);Timer.renderLaps();},
+    renderLaps:function(){var list=$('#lapList');if(!list)return;list.innerHTML='';Timer.laps.forEach(function(sec,i){var li=document.createElement('li');li.textContent='Tour '+(i+1)+': '+fmtHMS(sec);list.appendChild(li)});},
     stop:function(){var st=Store.data.timer; if(!st||!st.active) return; if(st.running){st.elapsed += Math.floor((Date.now()-st.start)/1000)} var secs=st.elapsed; var date=toKey(new Date()); if(secs>0){Store.data.sessions.push({seconds:secs,date:date,courseId:st.courseId,subjectId:st.subjectId,evId:st.evId,startedAt:new Date().toISOString()})} Store.data.timer={active:false,evId:null,courseId:null,subjectId:null,start:0,elapsed:0,total:0,running:false,minimized:false,title:'',color:'#22c55e'}; Store.touch(); Timer.tickStop(); Timer.updateUI(); var pan=$('#timer'); var dock=$('#timerDock'); if(pan) pan.style.display='none'; if(dock) dock.style.display='none'; renderStats()},
     minimize:function(min){var st=Store.data.timer; if(!st||!st.active) return; st.minimized=!!min; Store.touch(); var pan=$('#timer'); var dock=$('#timerDock'); if(pan) pan.style.display=min?'none':'block'; if(dock) dock.style.display=min?'block':'none'; Timer.updateUI(); applyPositions()},
     close:function(){var st=Store.data.timer; if(!st||!st.active) return; Timer.minimize(true)},
     tickStart:function(){clearInterval(Timer.int); Timer.int=setInterval(function(){Timer.updateUI(true)},1000)},
     tickStop:function(){clearInterval(Timer.int)},
+    playSound:function(){try{var C=window.AudioContext||window.webkitAudioContext;var ctx=new C();var o=ctx.createOscillator();var g=ctx.createGain();g.gain.value=0.1;o.type='sine';o.frequency.value=880;o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+0.5);}catch(e){}},
     toggleFullscreen:function(){
       var st=Store.data.timer||{};
       var pan=$('#timer');
       if(!pan)return;
       Timer.isFullscreen=!Timer.isFullscreen;
       pan.classList.toggle('fullscreen',Timer.isFullscreen);
+      if(Timer.isFullscreen){pan.style.left='0';pan.style.top='0';pan.style.right='0';pan.style.bottom='0';}
+      else applyPositions();
       var fs=$('#timerFullscreen');
       if(fs)fs.textContent=Timer.isFullscreen?'❐':'□';
     },
@@ -649,29 +683,42 @@
       if(td)td.style.background=st.color||'#22c55e';
 
       var elapsed=st.running?st.elapsed+Math.floor((Date.now()-st.start)/1000):st.elapsed;
-      var dig=$('#timerDigits');
       var dock=$('#timerDockBtn');
       var tm=$('#timerMeta');
       var bar=$('#timerProgress');
       var pb=$('.progress-bar');
+      var h=$('#timerH'),m=$('#timerM'),s=$('#timerS');
+      var pbts=$('.preset-buttons');
+      var lapBtn=$('#timerLap');
+      var lapList=$('#lapList');
 
       if(Timer.mode==='timer'){
         var total=st.total||0;
         var remaining=Math.max(total-elapsed,0);
-        if(dig)dig.textContent=fmtHMS(remaining);
+        if(st.running||elapsed>0||total>0){
+          var parts=fmtHMS(remaining).split(':');
+          if(h)h.textContent=parts[0]; if(m)m.textContent=parts[1]; if(s)s.textContent=parts[2];
+        }
         if(dock)dock.textContent='⏱ '+fmtHMS(remaining)+'  ·  '+(st.title||'');
         if(pb)pb.style.display='block';
         if(bar)bar.style.width=total?Math.min(elapsed/total*100,100)+'%':'0%';
-        if(st.running && remaining<=0){Timer.stop();return;}
+        if(st.running && remaining<=0){Timer.playSound();Timer.stop();return;}
         if(tm)tm.textContent=st.running?'En cours…':'En pause';
-        var ts=$('.time-setter'); if(ts) ts.style.display=st.running?'none':'flex';
+        if(pbts)pbts.style.display=(st.running||elapsed>0)?'none':'flex';
+        [h,m,s].forEach(function(el){if(el){var editable=!st.running&&elapsed===0;el.contentEditable=editable.toString();el.classList.toggle('editable',editable);}});
+        if(lapBtn)lapBtn.style.display='none';
+        if(lapList)lapList.style.display='none';
       }else{
-        if(dig)dig.textContent=fmtHMS(elapsed);
+        var parts2=fmtHMS(elapsed).split(':');
+        if(h)h.textContent=parts2[0]; if(m)m.textContent=parts2[1]; if(s)s.textContent=parts2[2];
         if(dock)dock.textContent='⏱ '+fmtHMS(elapsed)+'  ·  '+(st.title||'');
         if(pb)pb.style.display='none';
         if(bar)bar.style.width='0%';
         if(tm)tm.textContent=st.running?'Chronomètre en cours…':'Chronomètre en pause';
-        var ts2=$('.time-setter'); if(ts2) ts2.style.display='none';
+        if(pbts)pbts.style.display='none';
+        [h,m,s].forEach(function(el){if(el){el.contentEditable='false';el.classList.remove('editable');}});
+        if(lapBtn)lapBtn.style.display=st.active&&st.running?'inline-block':'none';
+        if(lapList)lapList.style.display=(Timer.laps.length>0)?'block':'none';
       }
 
       var s1=$('#timerStart');
@@ -763,6 +810,7 @@
       on('#prevBtn','click',function(){shift(-1)});
       on('#nextBtn','click',function(){shift(1)});
       on('#todayBtn','click',function(){UI.refDate=fmtDate(new Date());renderAgenda()});
+      on('#openTimer','click',function(){Timer.openManual()});
       on('#openFilters','click',openFilters);
       on('#filtersApply','click',function(){applyNewFilters()});
       on('#filtersClear','click',function(){clearFilters();buildFiltersUI();renderAgenda()});
